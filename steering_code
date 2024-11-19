@@ -1,0 +1,18 @@
+#include <Servo.h>  // Include the Servo library
+
+Servo myServo;  // Create a Servo object
+
+int steering = 0;
+
+void setup() {
+  myServo.attach(11);  // Attach the servo to pin 11
+}
+
+void loop() {
+  myServo.write(steering);  // Move servo to 104 degrees (middle position)
+                            // Move servo to 55 degrees (left position)
+                            // Move servo to 1140 degrees (right position)
+  // Added these two lines, not yet tested.
+  delay(200);
+  steering = steering + 5;       
+}
