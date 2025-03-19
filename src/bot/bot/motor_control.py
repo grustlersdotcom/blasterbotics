@@ -36,7 +36,29 @@ class MotorControl(Node):
         self.current_position = msg
         return
 
-    def state_machine_loop(self,msg):
+     def state_machine_loop(self):
+        # First check if the robot is instructed to stop
+        if self.state == "STOP":
+            self.stop_movement()  # Ensure that we stop if the state is STOP
+
+        #TODO add tolerances here, add check for turnarounds
+        elif self.target_position is not None and self.current_position is not None:
+            if self.current_position < self.target_position:
+                self.state = "FORWARD"
+            elif self.current_position > self.target_position:
+                self.state = "BACKWARD"
+            else:
+                self.state = "STOP"  # If at target, stop the robot
+
+        # Based on the state, perform the corresponding action
+        if self.state == "IDLE":
+            self.stop_movement()
+        elif self.state == "FORWARD":
+            self.move_forward()
+        elif self.state == "BACKWARD":
+            self.move_backward()
+        elif self.state == "STOP":
+            self.stop_movement()
         return
 
     def update_target_pos(self,msg):
@@ -68,11 +90,7 @@ class MotorControl(Node):
             self.update_target_pos,
             10
             )
-
-        # Setup state machine loop using a timer
-        self.state_machine_time = self.create_timer(.1,self.state_machine_loop)
-
-        #Setup needed pins
+         #Setup needed pins
         self.fb_pwm, self.lr_pwm = self.pin_setup()
         
         # Initial state is to be idle, the pathfinding algorithm will update state
@@ -87,10 +105,30 @@ class MotorControl(Node):
         self.target_position = None
         self.current_position = None
 
+        # Setup state machine loop using a timer
+        self.state_machine_time = self.create_timer(.1,self.state_machine_loop)
         return
-#TODO UPDATE MAIN
+
+    def cleanup(self):
+        #Note cleanup is not necessary here due to the stopping of the pwm individually
+        self.fb_pwm.stop()
+        self.lr_pwm.stop()
+        return
+
 def main():
-    print('Hi from bot.')
+    rclpy.init()
+
+    motor_control = MotorControl()
+
+    try:
+        rclpy.spin(motor_control)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        motor_control.cleanup()
+        rclpy.shutdown()
+
+
 
 
 if __name__ == '__main__':
