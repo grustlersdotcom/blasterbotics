@@ -1,7 +1,8 @@
 import Jetson.GPIO as GPIO
 import time
-import socket
-import threading
+
+
+#TODO ADD WRIST CALLBACKS
 
 # Change as needed
 MOVE_SPEED_CONSTANT = 100
@@ -9,14 +10,18 @@ FORWARD_BACKWARD_PIN = 15
 LEFT_RIGHT_PIN = 18
 ARM_RELAY_PIN_UP = 13 # Note we should change this to whatever it is later
 ARM_RELAY_PIN_DOWN = 1 # NOTE replace this later
-LIMIT_SWITCH_PIN = 15 # Note switch that here
-WRIST_PIN = 1
+LIMIT_SWITCH_PIN_UP = 15 # Note switch that here
+LIMIT_SWITCH_PIN_DOWN = 1
+WRIST_PIN_CW = 1
+WRIST_PIN_CCW = 1
 
 # State Variables
 current_position = None
 target_position = None
 arm_state = None
 
+
+# TODO finish the pin setups here
 # Communications happen via sockets here
 def pin_setup():
         GPIO.setmode(GPIO.BOARD)
@@ -25,9 +30,9 @@ def pin_setup():
         fb_pwm = GPIO.PWM(FORWARD_BACKWARD_PIN,50)
         lr_pwm = GPIO.PWM(LEFT_RIGHT_PIN,50)
         GPIO.setup(ARM_RELAY_PIN_UP,GPIO.OUT,initial=GPIO.LOW)
-        GPIO.setup(LIMIT_SWITCH_PIN,GPIO.IN,initial=GPIO.LOW)
+        GPIO.setup(LIMIT_SWITCH_PIN_UP,GPIO.IN,initial=GPIO.LOW)
         GPIO.setup(ARM_RELAY_PIN_DOWN,GPIO.OUT,initial=GPIO.LOW)
-        GPIO.setup(WRIST_PIN,GPIO.OUT,initial=GPIO.LOW)
+        GPIO.setup(WRIST_PIN_CW,GPIO.OUT,initial=GPIO.LOW)
         return fb_pwm,lr_pwm
 
 def move_forward(fb_pwm):
@@ -47,9 +52,12 @@ def set_left_right_position(lr_pwm,angle):
     lr_pwm.ChangeDutyCycle(duty_cycle)
     return
 
-def limit_switch_callback():
+def limit_switch_up_callback():
     GPIO.output(ARM_RELAY_PIN_UP,GPIO.LOW)
     return
+
+def limit_switch_down_callback():
+    GPIO.output(ARM_RELAY_PIN_DOWN,GPIO.LOW)
 
 def arm_up():
     arm_state = "UP"
@@ -69,7 +77,7 @@ def stop_arm():
     return
 
 def turn_wrist():
-     GPIO.output(WRIST_PIN,GPIO.HIGH)
+     GPIO.output(WRIST_PIN_CW,GPIO.HIGH)
      return
 
 # So we need to script out the triangle
@@ -79,52 +87,52 @@ def turn_wrist():
 # Then we hard code the timer to make it so that at some predefined point so after a certiain amount of time we need to turn and then turn inverse to it
 # Then we need to reorient itself aound a new line and then we need to lower the arm move forward some amount and then lift the arm.
 
+INITIAL_LINE_TEST_CONST = True
+SCOOP_TEST_CONST = False
+TURN_TEST_CONST = False
+SWERVE_TEST_CONST = False
+DUMP_TEST_CONST = False
+
 def main():
     # First we setup all of the pins
     fb_pwm, lr_pwm = pin_setup()	
-    GPIO.add_event_detect(LIMIT_SWITCH_PIN,GPIO.RISING,callback=limit_switch_callback,bouncetime=10,polltime=.1)
+    GPIO.add_event_detect(LIMIT_SWITCH_PIN_UP,GPIO.RISING,callback=limit_switch_up_callback,bouncetime=10,polltime=.1)
+    #TODO ADD LIMITSWITCH DOWNN EVENT DETECT
     print("Pins setup, limit switch callback registered")
     
-    # Forward and backwards demo
-    print("Demo of forward backwards motion")
-    move_forward(fb_pwm=fb_pwm)
-    time.sleep(0.5)
-    stop_movement(fb_pwm=fb_pwm)
-    move_backwards(fb_pwm=fb_pwm)
-    time.sleep(0.5)
-    stop_movement(fb_pwm=fb_pwm)
-
-    # Arm up and down demo
-    print("Demo of arm going up and down briefly")
-    arm_up()
-    time.sleep(.1)
-    arm_down()
-    time.sleep(.1)
-
-    # Obstacle detection demo
-    print("Demo of maneuvering around object & grabbing")
-    # block of code to move the car along the new axis for the cone
-    set_left_right_position(lr_pwm=lr_pwm,angle=70)
-    move_forward(fb_pwm=fb_pwm)
-    time.sleep(.1)
-    set_left_right_position(lr_pwm=lr_pwm,angle=-70)
-    time.sleep(.1)
-    set_left_right_position(lr_pwm=lr_pwm,angle=0)
-    # This is the block to maneuver around the cone
-    time.sleep(.25)
-    set_left_right_position(lr_pwm=lr_pwm,angle=50)
-    time.sleep(.1)
-    set_left_right_position(lr_pwm=lr_pwm,angle=-50)
-    time.sleep(.1)
-    stop_movement(fb_pwm=fb_pwm)
-    arm_down()
-    time.sleep(.1)
-    move_forward(fb_pwm=fb_pwm)
-    time.sleep(.1)
-    stop_movement(fb_pwm=fb_pwm)
-    arm_up()
-    time.sleep(.1)
-    turn_wrist()
+    # Move forwards on the initial line
+    if INITIAL_LINE_TEST_CONST:
+        move_forward(fb_pwm=fb_pwm)
+        time.sleep(1)
+        stop_movement(fb_pwm=fb_pwm)
+    # Perform the scoop
+    if SCOOP_TEST_CONST:
+        arm_down()
+        move_forward(fb_pwm=fb_pwm)
+        time.sleep(.01)
+        stop_movement(fb_pwm=fb_pwm)
+        arm_up()
+    # Now we need to perform the turn
+    if TURN_TEST_CONST:
+        set_left_right_position(lr_pwm=lr_pwm,angle=70)
+        move_forward(fb_pwm=fb_pwm)
+        time.sleep(3)
+    # We should be on the new axis now
+    if SWERVE_TEST_CONST:
+        set_left_right_position(lr_pwm=lr_pwm,angle=0)
+        time.sleep(1) # Sleep to before we need to swerve
+        set_left_right_position(lr_pwm=lr_pwm,angle=50)
+        time.sleep(.1)
+        set_left_right_position(lr_pwm=lr_pwm,angle=-50)
+        time.sleep(.1)
+        set_left_right_position(lr_pwm=lr_pwm,angle=0)
+    # Obstacle should be passed so now we can just go to the dump site
+    if DUMP_TEST_CONST:
+        time.sleep(1)
+        stop_movement(fb_pwm=fb_pwm)
+        # Turn the wrist
+        turn_wrist()
+        time.sleep(.1)
     return
 
 if __name__ == 'main':
