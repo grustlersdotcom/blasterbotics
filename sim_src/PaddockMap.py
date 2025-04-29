@@ -5,6 +5,7 @@ import numpy as np
 import os
 from datetime import datetime
 from geo_utils import haversine_distance
+from math import cos,radians
 
 class PaddockMap:
     def __init__(self, corner_coords, grid_resolution=1.0, map_folder="robot_maps"):

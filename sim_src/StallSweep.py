@@ -1,3 +1,9 @@
+import numpy as np
+from geo_utils import haversine_distance
+from math import sqrt
+from RobotSimulator import RobotSimulator
+import time
+
 def generate_coverage_path(self, start_lat, start_lon, lane_width=2.0):
     """
     Generate a coverage path that covers the entire paddock in a lawnmower pattern
