@@ -4,6 +4,7 @@ This script demonstrates how to load saved paddock maps and use them
 for robot testing with simulated navigation.
 """
 from RobotSimulator import RobotSimulator, load_paddock_map, test_robot_navigation
+from StallSweep import clean_paddock
 
 def main():
     """Main function to test robot navigation on saved maps"""
@@ -45,6 +46,7 @@ def main():
             print("Invalid choice!")
     except ValueError:
         print("Please enter a number!")
+    
 
 if __name__ == "__main__":
     main()

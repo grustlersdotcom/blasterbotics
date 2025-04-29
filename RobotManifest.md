@@ -1,130 +1,46 @@
-# Paddock Pal Robot Engineering Document
+# Robot Prototype Design and Software
 
-## Overview
+This robot was developed on a pretty tight budget, so naturally, a few corners had to be cut along the way. Over the course of development, a lot of mechanical and power system changes happened, which ended up breaking or invalidating a lot of the code I originally wrote. As a result, a good chunk of the original software had to be scrapped or reworked, and unfortunately, I didn’t get to move past basic hardware testing.
 
-The **Paddock Pal Robot** is designed to automate the process of mucking stalls within donkey paddocks at an animal shelter. The robot must navigate an unstructured and dynamic outdoor environment, detect and avoid temporary and permanent obstacles, and perform physical tasks such as arm actuation for mucking. This requires integration of several sensing and control systems: **LiDAR**, **GPS**, and a **Camera system**, all orchestrated by a central **Control System**.
+The Python code included here simulates what the robot is supposed to do. Right now, the physical robot isn’t fully operational — it doesn’t even turn — and several control systems are incomplete. That said, the Jetson board has working code for most of the hardware components like GPS, LiDAR, and the rest. While it’s not all wired together, the groundwork is there for someone to pick up and move forward.
 
----
+## Written Code
+### geo_utils
 
-## System Goals
+Contains functions to convert GPS data (from the u-blox module) into grid coordinates. This is how the robot understands where it is and navigates around. Also useful for calculating distances.
 
-- **Autonomous Stall Cleaning**: Efficiently clean stalls without human intervention.
-- **Environmental Awareness**: Detect boundaries, obstacles, and objects of interest.
-- **Precise Navigation**: Utilize GPS and local sensing to follow a path and avoid hazards.
-- **Modular Software**: Divide logic into subsystems to allow for testing, scalability, and upgradeability.
+### PaddockMap
+A class that handles loading, saving, and representing paddock maps. Saved maps go into the saved_maps folder. There's room to add logic for selecting a map based on current GPS position — shouldn’t be too hard, maybe just a JSON metadata file to pair maps with locations.
 
----
+### RobotSimulator
+This is where most of the testing/visualization tools live. It stores simulated robot maps in robot_maps and has functions to help visualize movement and state. Very helpful when testing without hardware.
 
-## Core Sensors and Subsystems
+### StallSweep
+Runs a Roomba-style sweeping pattern across a paddock, carving out lanes and updating waypoints as it goes.
 
-### 1. GPS Subsystem
+### TalkToArduino
+Small helper library to communicate with the Arduino controller over I2C.
 
-**Purpose**:
-- To provide global positioning data that defines the robot’s position within the paddock.
-- To map out the paddock boundaries for navigation constraints.
-- To relay positional data to the control system for global grid reference alignment.
+### Pathfinding_demo_main
+The main demo script we showed at the showcase — pulls together a bunch of the above classes and shows how they interact. Good starting point to get a feel for how it’s meant to work.
 
-**Data Flow**:  
-`Raw GPS → Noise filtering / smoothing → Boundary awareness → Position update to control system`
+## Future Work
+Originally, the plan was to control everything using Python on the Jetson, but that fell through near the end due to the hardware changes. So here’s what still needs doing:
 
-**Considerations**:
-- Must account for GPS drift; sensor fusion with IMU may be considered in future iterations.
-- Works best in open-air environments typical of paddocks.
+    Individual testing: All the existing scripts/modules should be tested independently to make sure they still work on their own.
 
----
+    Dumping system: After every three scoops, the robot is supposed to head to a dump location, drop the payload, and then resume where it left off. That logic was never implemented. Dump location context can be stored in the paddock maps or in an external metadata file — up to whoever picks this up next.
 
-### 2. LiDAR Subsystem
+    Resuming path after dump: This was where I got stuck. The robot needs to remember its last location before dumping and return to that same point to keep going. Shouldn’t be too hard logically, but I ran out of time before figuring it out.
 
-**Purpose**:
-- To perform real-time detection of temporary or dynamic obstacles (e.g., animals, tools, waste).
-- To generate offset vectors that guide reactive avoidance behavior.
-- To prevent collisions by triggering emergency stop signals if a path is blocked.
+    Arduino + control tuning: The hardware got swapped out after I graduated (wheels, power system, etc.), so the control and Arduino code will need to be reworked/tuned to match the new setup.
 
-**Data Flow**:  
-`Raw point cloud → Obstacle segmentation → Collision prediction → Command to control system`
+    Control structure: I set this up using global heading and forward/backward state variables. The idea was that subsystems like LiDAR or camera vision could change those values when they needed control. That system is in place but wasn’t fully tested due to other issues.
 
-**Features**:
-- Short-range obstacle detection in 360 degrees (depending on unit).
-- Integration with control logic to modify or halt movement commands.
+    Vision code: Lives elsewhere (not in this repo). The objects identified by the camera just need some basic linear algebra to calculate the angle from the robot’s forward vector, then pass that info to the control system.
 
----
+    LiDAR: Right now, it's mostly configured as a basic stop interrupt. It needs logic to help the robot re-route around obstacles. No idea how to do that part — someone smarter can figure it out.
 
-### 3. Camera Subsystem
+    PID: Could add one for smoother control, but you might be fine without it depending on how janky the final system is.
 
-**Purpose**:
-- To identify mucking targets (waste piles) through vision processing and maneuver alignment.
-- To assist with object recognition and classification (e.g., determining waste vs. animal).
-- To control actuation of the robotic arm responsible for mucking.
-
-**Data Flow**:  
-`Camera frame → Computer vision algorithm → Waste detection → Arm offset + signal to pause → Control system update`
-
-**Capabilities**:
-- Frame-by-frame inference using object detection (YOLO, SSD, etc.).
-- Visual cues for aligning mucking tools.
-- Optional human/animal presence alerting.
-
----
-
-## Control System
-
-**Overview**:  
-The control system serves as the central hub that integrates and interprets data from the GPS, LiDAR, and Camera subsystems. It also runs the **pathing algorithm** and translates movement plans into motor commands, ultimately driving the robot.
-
-**Responsibilities**:
-- Fusion of sensor data into a coherent world model (grid-based).
-- Management of robot pose `(x, y, θ)` using GPS and odometry.
-- Execution of **A*** path planning based on gridded map and dynamic inputs.
-- Translating waypoints into velocity and direction vectors.
-- Issuing pinout commands to the Jetson Nano (or equivalent) for motor control and arm actuation.
-
-**Architecture**:
-- **Subsystem Input Layer**: Receives structured messages (e.g., ROS2 topics or custom messaging format)
-- **Mapping & Localization Layer**: Maintains occupancy grid and updates with incoming sensor data
-- **Planning Layer**: Runs A* algorithm to determine shortest valid path to next target
-- **Motor Control Layer**: Converts waypoints into movement primitives (turn, forward, stop)
-- **Actuation Layer**: Sends GPIO/PWM/I2C/SPI signals to motor drivers and actuators
-
----
-
-## Software Architecture
-
-### Proposed ROS2 Node Structure
-
-| Node Name            | Responsibility                          | Inputs                        | Outputs                       |
-|----------------------|-----------------------------------------|-------------------------------|-------------------------------|
-| `gps_node`           | Read and process GPS data               | GPS Module                    | Current position              |
-| `lidar_node`         | Process LiDAR point clouds              | LiDAR Sensor                  | Obstacle alerts, offset       |
-| `camera_node`        | Detect mucking targets                  | USB/CSI Camera                | Waste detected, offsets       |
-| `control_node`       | Core logic, grid mapping, pathing       | Inputs from all subsystems    | Movement & actuator commands  |
-| `motor_driver_node`  | Translate movement to pinouts           | Movement commands             | GPIO/PWM signals              |
-| `arm_control_node`   | Raise/lower and actuate mucking arm     | Camera signals / Control Cmds | Arm state                     |
-
----
-
-## Path Planning
-
-The control system converts the real-world environment into a **discretized grid**. A* pathfinding is implemented over this grid to plan the most efficient route to the target mucking point. The robot must dynamically replan when obstacles are detected by LiDAR.
-
-- **Inputs**: Start/goal positions, occupancy grid
-- **Outputs**: Sequence of waypoints
-- **Constraints**: Avoid dynamic obstacles, respect paddock boundaries
-
----
-
-## Communications and Data Flow
-
-- All sensors communicate asynchronously with the control system.
-- Data is time-stamped and stored in a circular buffer for state estimation and debugging.
-- ROS2 services and topics are used to maintain modularity and traceability.
-
----
-
-## Next Steps
-
-1. Finalize sensor selection and calibration specs.
-2. Develop simulation environment to test pathing and control.
-3. Define message schema between subsystems (ROS2 messages or custom).
-4. Build testing framework for obstacle detection and recovery behaviors.
-5. Begin hardware integration and bring-up phase on the Jetson.
-
+    ROS compatibility: Everything written here can be translated into ROS without much trouble. I didn’t get to it, but the structure and logic should port over cleanly.
