@@ -1,0 +1,157 @@
+//Arduino code for software design team
+// NOT VERIFIED: ARM, STEERING
+// VERIFIED: THROTTLE, WRIST
+ 
+#include <Servo.h>
+ 
+Servo THR_servo;  // Create a Servo object to control the Throttle
+Servo STR_servo;  // Create a Servo object to control the Steering
+ 
+// Define the pins on the arduino with what they are connected to
+#define THR_PIN 6     // The wire for the Throttle PWM signal should be connected to pin 5 on the arduino
+#define STR_PIN 5     // The wire for the Steering PWM signal should be connected to pin 6 on the arduino
+#define WRIST_CLK 10   // The wire for the Wrist clk is the wire that needs voltage for the wire to move in the clockwise direction
+#define WRIST_CCLK 8  // The wire for the Wrist cclk is the wire that needs voltage for the wire to move in the counter clockwise direction
+#define ARM_LOW 11    // The wire connected to this pin is the wire that needs voltage to bring the arm down
+#define ARM_HIGH 9   // The wire connected to this pin is the wire that needs voltage to bring the arm up
+ 
+ 
+/* These are Steering values that send the PWM signal to the steering motor, allowing it to move left, right, and straight.
+These values are between 0 and 255. They can be tuned for more accuracy.
+ 
+NOTE: THE SERVO CAN MOVE FARTHER THAN NEEDED, BE SURE YOU ALWAYS HAVE THE VALUES BETWEEN 60 - 120.
+GOING HIGHER OR LOWER MIGHT CAUSE ISSUES SO PROCEED WITH CAUSION.
+*/
+#define LEFT  120      //The value of 120 moves the wheels to the left. The lower the value, the more the motor tries to move left
+#define RIGHT 60     //The value of 60 moves the wheels to the right. The higher the value, the more right the motor tries to move right
+#define STRAIGHT 86   //The value of 86 moves the wheels to a foward position. This can be tuned to be more left or right to make sure it moves in a straight line.
+ 
+/* These are the throttle values. The throttle values can be adjusted for speed and direction. After a certain value, the wheels will change direction. The stopped value
+is the value between the wheels moving forward and backwards. Our values are set relatively slow but this can be adjusted.*/
+#define FORWARD 1600  //The value of 1550 moves robot forward. A larger value will speed it up, a lower value will slow it down. This value should always be greater than the STOPPED value
+#define BACKWARD 1437 //The value of 1437 moves the robot backwards. A lower value will speed it up, a higher value will slow it down. This vlaue should always be less than the STOPPED value
+#define STOPPED 1500  //The value 1500 keeps the robot in a stationary position. There is a range of around 20 values that will keep the robot stationary. Make sure the wheels are stationary even if there is no weight on the motors
+ 
+int State = 0;
+ 
+ 
+void setup() {
+ 
+  Serial.begin(115200); // Start serial communication (you can add in print statements for debugging with this)
+  Serial.println("");
+  Serial.println("STARTING SETUP");
+ 
+  pinMode(ARM_HIGH, OUTPUT);
+  pinMode(ARM_LOW, OUTPUT);
+  pinMode(WRIST_CLK, OUTPUT);
+  pinMode(WRIST_CCLK, OUTPUT);
+ 
+  STR_servo.attach(STR_PIN);  // Connects the Steering Object to the pin wired to the steering motor
+  THR_servo.attach(THR_PIN);  // Connects the Throttle Object to the pin wired to the throttle motor
+  reset();
+}
+ 
+void loop() {
+    /* Here you can call different functions to move the robot forward, backward, left, or right.
+     use delays to measure the time for each until the jetson code is fully incorporated. In the end
+     the Jetson should be able to ask the arduino to run certain functions and the arduino will only
+     be used to fullfill the jetson's commands. This loop function continues to loop through until the
+     program is stopped. Therefore, keep all the code in the if statement if you only want it to run once.*/
+    if(State == 0){
+      Serial.println("");
+      Serial.println("Starting Code");
+      // NOTE: we have a delay in each function to limit the amount of time the signals are sent for, this can be adjusted in the functions themselves.
+ 
+      // Throttle function
+      throttle(BACKWARD); // Input options include 'FORWARD', 'BACKWARD', and 'STOPPED'
+ 
+      // Steering function
+      steering(LEFT); // Input options include 'LEFT', 'RIGHT', and 'STRAIGHT'
+     
+      // Arm functions
+      arm(1);   // This function moves the arm 1 = Arm moves up, 0 = Arm does not move, -1 = arm moves down
+ 
+      // Wrist functions
+      wrist(-1);  // This function moves the wrist: 1 = wrist moves clockwise, 0 = wrist does not move, -1 = wrist moves counter-clockwise
+      State = -1;
+ 
+      Serial.println("");
+      Serial.println("Ending Code");
+      reset(); // Stops all movement of the robot
+ 
+    }
+}
+ 
+void throttle(int value_throttle){
+  Serial.println("Running Throttle Function");
+  THR_servo.writeMicroseconds(value_throttle); //This sends the PWM signal to the the throttle motor
+  delay(3000); // This delay is used to determine how long the function executes for (in seconds)
+ 
+}
+ 
+void steering(int value_steering){
+  Serial.println("Running Steering Function");
+  STR_servo.write(value_steering); //This send the PWM signal to the steering servo
+  delay(3000); // This delay is used to determine how long the function executes for (in seconds)
+}
+ 
+void arm(int value_arm){
+  Serial.println("Running arm Function");
+ 
+  switch(value_arm){
+ 
+    case -1:  // ARM DOWN
+      digitalWrite(ARM_HIGH, LOW);  // Sets wire for arm to move up to GND
+      digitalWrite(ARM_LOW, HIGH);  // Sets wire for arm to move down to V_PWR (gets voltage)
+      delay(500); // This delay is used to determine how long the function executes for (in seconds)
+      break;
+ 
+    case 0: // ARM STATIONARY
+      digitalWrite(ARM_HIGH, LOW);  // Sets wire for arm to move up to GND
+      digitalWrite(ARM_LOW, LOW);   // Sets wire for arm to move down to GND
+      delay(500); // This delay is used to determine how long the function executes for (in seconds)
+      break;
+ 
+    case 1: // ARM UP
+      digitalWrite(ARM_HIGH, HIGH);  // Sets wire for arm to move up to V_PWR (gets voltage)
+      digitalWrite(ARM_LOW, LOW);   // Sets wire for arm to move down to GND
+      delay(500); // This delay is used to determine how long the function executes for (in seconds)
+      break;
+  }
+}
+ 
+void wrist(int value_wrist){
+  Serial.println("Running wrist Function");
+ 
+  switch(value_wrist){
+ 
+    case -1:
+      digitalWrite(WRIST_CLK, LOW);  // Sets wire for wrist to clockwise to GND
+      digitalWrite(WRIST_CCLK, HIGH);  // Sets wire for wist to counter-clockwise to V_PWR (gets voltage)
+      break;
+ 
+    case 0:
+      digitalWrite(WRIST_CLK, LOW);  // Sets wire for wrist to clockwise to GND
+      digitalWrite(WRIST_CCLK, LOW);  // Sets wire for wist to counter-clockwise to GND
+       break;
+ 
+    case 1:
+      digitalWrite(WRIST_CLK, HIGH);  // Sets wire for wrist to clockwise to V_PWR (gets voltage)
+      digitalWrite(WRIST_CCLK, LOW);  // Sets wire for wist to counter-clockwise to GND
+       break;
+  }
+ 
+  delay(3330); // This delay is used to determine how long the function executes for (in seconds)
+}
+ 
+void reset(){
+  Serial.println("Running reset Function");
+ 
+  // Resets everything to its original position
+  THR_servo.writeMicroseconds(STOPPED); //This sends the PWM signal to the the throttle motor
+  STR_servo.write(STRAIGHT); //This send the PWM signal to the steering servo
+  digitalWrite(ARM_HIGH, LOW);  // Sets wire for arm to move up to GND
+  digitalWrite(ARM_LOW, LOW);   // Sets wire for arm to move down to GND
+  digitalWrite(WRIST_CLK, LOW);  // Sets wire for wrist to clockwise to GND
+  digitalWrite(WRIST_CCLK, LOW);  // Sets wire for wist to counter-clockwise to GND
+}
